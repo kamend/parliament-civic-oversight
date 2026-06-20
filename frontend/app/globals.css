@@ -1,0 +1,408 @@
+@import "tailwindcss";
+
+/* ───────────────────────────────────────────────────────────────────────────
+   Quorum — a cool, architectural theme for the parliamentary record. Not the
+   warm paper of an archive but the limestone and slate of the chamber: cool
+   stone grounds, deep slate ink, one confident chamber-red for the citation
+   apparatus (the red of the benches and the flag), a sparing tricolour green
+   for "in session" signals. Slab serif (Bitter) — the *typed* verbatim record —
+   over a Cyrillic public-sector sans (Golos Text), with mono for the metadata.
+   ──────────────────────────────────────────────────────────────────────── */
+
+:root {
+  --paper: #dce2e0; /* the chamber floor — cool limestone */
+  --surface: #f5f7f6; /* a tabled sheet */
+  --surface-2: #e8ecea; /* a recessed panel */
+  --ink: #18211f; /* deep slate, near-black */
+  --ink-soft: #54625f; /* muted slate, for metadata */
+  --ink-faint: #899694; /* faintest, for hairline labels */
+  --line: #ccd5d2; /* hairline rule */
+  --line-strong: #a9b4b0;
+  --crimson: #b01e2e; /* the seal / citations — chamber red */
+  --crimson-deep: #8a1322;
+  --green: #0f7a52; /* tricolour / in-session, used sparingly */
+  --amber: #9c6b14;
+
+  --background: var(--paper);
+  --foreground: var(--ink);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-paper: var(--paper);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-ink: var(--ink);
+  --color-ink-soft: var(--ink-soft);
+  --color-ink-faint: var(--ink-faint);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-crimson: var(--crimson);
+  --color-crimson-deep: var(--crimson-deep);
+  --color-green: var(--green);
+  --color-amber: var(--amber);
+
+  --font-display: var(--font-display), Georgia, serif;
+  --font-sans: var(--font-sans), system-ui, sans-serif;
+  --font-mono: var(--font-mono), ui-monospace, monospace;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background-color: var(--paper);
+  /* Cool architectural wash: a high, even daylight from the top, a faint slate
+     settling at the foot of the room. Stone, not paper — but never a flat fill. */
+  background-image:
+    radial-gradient(
+      140% 80% at 50% -10%,
+      rgba(255, 255, 255, 0.65) 0%,
+      rgba(255, 255, 255, 0) 55%
+    ),
+    radial-gradient(
+      120% 100% at 100% 100%,
+      rgba(24, 33, 31, 0.05) 0%,
+      rgba(24, 33, 31, 0) 55%
+    );
+  background-attachment: fixed;
+  color: var(--ink);
+  font-family: var(--font-sans);
+  font-feature-settings: "kern", "liga";
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Selection picks up the chamber red — the citation colour echoed in the hand. */
+::selection {
+  background: rgba(176, 30, 46, 0.18);
+  color: var(--ink);
+}
+
+/* Fine, even tooth — a faint cool grain, no warm cast, no multiply. Adds
+   surface to the stone without an asset and without reading as newsprint. */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  opacity: 0.5;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='180' height='180' filter='url(%23n)' opacity='0.035'/%3E%3C/svg%3E");
+}
+
+/* ── Type ─────────────────────────────────────────────────────────────────── */
+.font-display {
+  font-family: var(--font-display);
+}
+.font-mono {
+  font-family: var(--font-mono);
+}
+
+.eyebrow {
+  font-family: var(--font-mono);
+  font-size: 0.66rem;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+
+/* Thin/heavy double rule, like a printed order paper masthead. */
+.rule-double {
+  border-top: 2px solid var(--ink);
+  box-shadow: 0 3px 0 -2px var(--line-strong);
+}
+
+/* ── Citation chip — a footnote marker that lives inline in the answer ──────── */
+.cite-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.4em;
+  height: 1.4em;
+  padding: 0 0.32em;
+  margin: 0 0.12em;
+  transform: translateY(-0.18em);
+  font-family: var(--font-mono);
+  font-size: 0.62em;
+  font-weight: 600;
+  line-height: 1;
+  color: var(--crimson-deep);
+  background: rgba(176, 30, 46, 0.09);
+  border: 1px solid rgba(176, 30, 46, 0.32);
+  border-radius: 0.28em;
+  cursor: pointer;
+  transition:
+    background 0.18s ease,
+    color 0.18s ease,
+    transform 0.18s ease;
+  vertical-align: baseline;
+}
+.cite-chip:hover {
+  background: var(--crimson);
+  color: var(--surface);
+  transform: translateY(-0.18em) scale(1.06);
+}
+
+/* The card a chip points at, momentarily flagged when its chip is clicked. */
+@keyframes flag {
+  0% {
+    background-color: rgba(176, 30, 46, 0.16);
+    border-color: var(--crimson);
+  }
+  100% {
+    background-color: var(--surface);
+    border-color: var(--line);
+  }
+}
+.is-flagged {
+  animation: flag 1.6s ease-out;
+}
+
+/* ── Answer body — Markdown set in the editorial serif ──────────────────────── */
+.answer-md {
+  font-family: var(--font-display);
+  font-size: 1.18rem;
+  line-height: 1.78;
+  color: var(--ink);
+}
+.answer-md > :first-child {
+  margin-top: 0;
+}
+.answer-md p {
+  margin: 0 0 1.05em;
+}
+.answer-md h2,
+.answer-md h3,
+.answer-md h4 {
+  font-family: var(--font-display);
+  font-weight: 700;
+  line-height: 1.25;
+  color: var(--ink);
+  margin: 1.5em 0 0.5em;
+}
+.answer-md h2 {
+  font-size: 1.42rem;
+  padding-bottom: 0.18em;
+  border-bottom: 1px solid var(--line);
+}
+.answer-md h3 {
+  font-size: 1.2rem;
+}
+.answer-md h4 {
+  font-size: 1.05rem;
+  font-weight: 600;
+}
+.answer-md strong {
+  font-weight: 700;
+  color: var(--ink);
+}
+.answer-md em {
+  font-style: italic;
+}
+.answer-md a {
+  color: var(--crimson);
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 2px;
+}
+.answer-md a:hover {
+  color: var(--crimson-deep);
+}
+.answer-md ul,
+.answer-md ol {
+  margin: 0 0 1.05em;
+  padding-left: 1.4em;
+}
+/* Tailwind v4 preflight strips list markers — put them back. */
+.answer-md ul {
+  list-style: disc;
+}
+.answer-md ol {
+  list-style: decimal;
+}
+.answer-md li {
+  margin: 0.32em 0;
+  padding-left: 0.25em;
+}
+.answer-md ul > li::marker {
+  color: var(--crimson);
+}
+.answer-md ol > li::marker {
+  font-family: var(--font-mono);
+  font-size: 0.85em;
+  color: var(--ink-soft);
+}
+.answer-md blockquote {
+  margin: 1.1em 0;
+  padding: 0.2em 0 0.2em 1.1em;
+  border-left: 3px solid var(--crimson);
+  color: var(--ink-soft);
+  font-style: italic;
+}
+.answer-md hr {
+  margin: 1.6em 0;
+  border: 0;
+  border-top: 1px solid var(--line);
+}
+.answer-md code {
+  font-family: var(--font-mono);
+  font-size: 0.84em;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  padding: 0.1em 0.36em;
+}
+.answer-md pre {
+  margin: 0 0 1.05em;
+  padding: 0.9em 1.1em;
+  overflow-x: auto;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: 3px;
+}
+.answer-md pre code {
+  background: none;
+  border: 0;
+  padding: 0;
+  font-size: 0.82rem;
+}
+.answer-md table {
+  width: 100%;
+  margin: 0 0 1.2em;
+  border-collapse: collapse;
+  font-family: var(--font-sans);
+  font-size: 0.92rem;
+}
+.answer-md th,
+.answer-md td {
+  border: 1px solid var(--line);
+  padding: 0.5em 0.7em;
+  text-align: left;
+  vertical-align: top;
+}
+.answer-md th {
+  background: var(--surface-2);
+  font-weight: 600;
+}
+/* Let the streaming caret sit on the same line as the last paragraph. */
+.answer-md.caret > :last-child {
+  display: inline;
+}
+
+/* ── Streaming caret ────────────────────────────────────────────────────────── */
+@keyframes blink {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0;
+  }
+}
+.caret::after {
+  content: "";
+  display: inline-block;
+  width: 0.5ch;
+  height: 1.05em;
+  margin-left: 0.06em;
+  transform: translateY(0.16em);
+  background: var(--crimson);
+  animation: blink 1s step-end infinite;
+}
+
+/* ── Staggered entrance for record cards ────────────────────────────────────── */
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.rise {
+  animation: rise 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* ── Form controls, set in the same hand ───────────────────────────────────── */
+.field {
+  font-family: var(--font-sans);
+  font-size: 0.86rem;
+  color: var(--ink);
+  background: var(--surface);
+  border: 1px solid var(--line-strong);
+  border-radius: 2px;
+  padding: 0.46rem 0.6rem;
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+.field:focus {
+  outline: none;
+  border-color: var(--crimson);
+  box-shadow: 0 0 0 3px rgba(176, 30, 46, 0.12);
+}
+.field::placeholder {
+  color: var(--ink-faint);
+}
+/* Selects: drop the inconsistent native arrow and draw our own indicator. We use
+   a FILLED triangle that mirrors the calendar's ▾ glyph (DatePicker) in the same
+   --ink-soft ink and visual size, so every dropdown affordance reads identically. */
+select.field {
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+  padding-right: 2.5rem;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 10 10'%3E%3Cpath d='M2 4h6L5 7.5z' fill='%2354625f'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.7rem center;
+  background-size: 12px;
+}
+
+/* Search / autocomplete inputs: a closed select gets a trailing chevron; a
+   type-to-search field instead gets a LEADING magnifier (so it reads as "type
+   here", not "open a menu"), drawn in the same ink/weight as the chevron for
+   one visual language. The browser's native datalist indicator is suppressed. */
+input.field-search {
+  padding-left: 1.95rem;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='13' height='13' viewBox='0 0 24 24' fill='none' stroke='%2354625f' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='11' cy='11' r='7'/%3E%3Cline x1='21' y1='21' x2='16.5' y2='16.5'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: left 0.6rem center;
+  background-size: 12px; /* match the select's indicator size */
+}
+/* Kill the browser's native <datalist> dropdown arrow (the big ▼ on the right)
+   so only our leading magnifier remains. It's stubborn and vendor-specific, so
+   suppress it every way that bites across Chromium/Safari. */
+input.field-search::-webkit-calendar-picker-indicator,
+input.field-search::-webkit-list-button {
+  display: none !important;
+  -webkit-appearance: none;
+  appearance: none;
+  opacity: 0;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+}
+
+/* ── Scrollbar, kept in palette ─────────────────────────────────────────────── */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--line-strong) transparent;
+}
+*::-webkit-scrollbar {
+  width: 9px;
+  height: 9px;
+}
+*::-webkit-scrollbar-thumb {
+  background: var(--line-strong);
+  border-radius: 99px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background: var(--ink-faint);
+  background-clip: content-box;
+}

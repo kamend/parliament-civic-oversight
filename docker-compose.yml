@@ -1,0 +1,55 @@
+# Parliament RAG — full stack: FastAPI backend + Next.js frontend.
+#
+#   docker compose up --build
+#
+# The browser hits the frontend at http://localhost:3000; the frontend proxies
+# /api/* to the backend over the internal network (http://backend:8077).
+#
+# Prerequisites:
+#   - backend/.env exists with OPENROUTER_API_KEY set (cp backend/.env.example).
+#   - The LanceDB index is built under ./data/lancedb (see backend/INGESTION.md).
+#     An empty/missing index still boots — /api/ask just won't have anything to
+#     retrieve until you ingest.
+
+services:
+  backend:
+    build: ./backend
+    ports:
+      - "8077:8077"
+    env_file:
+      - ./backend/.env
+    environment:
+      # Point the code at the mounted volumes (config.py honours these).
+      PARL_DATA_DIR: /data/transcripts
+      LANCEDB_PATH: /data/lancedb
+      # Cache the ~5 GB of HuggingFace weights on a named volume, not the image.
+      HF_HOME: /hf_cache
+      CORS_ORIGIN: http://localhost:3000
+    volumes:
+      - ./data:/data
+      - hf_cache:/hf_cache
+    healthcheck:
+      # No curl in the slim image — use stdlib. Long start_period: the first
+      # boot downloads model weights before /api/health reports warm.
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8077/api/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 600s
+    restart: unless-stopped
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "3000:3000"
+    environment:
+      # Where this server proxies /api/* to — the backend service on the
+      # compose network.
+      BACKEND_ORIGIN: http://backend:8077
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+volumes:
+  # Persists downloaded model weights across container rebuilds/restarts.
+  hf_cache:

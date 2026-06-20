@@ -1,0 +1,47 @@
+[project]
+name = "parl-rag-backend"
+version = "0.1.0"
+description = "Production RAG backend over Bulgarian Parliament plenary transcripts"
+requires-python = ">=3.10"
+dependencies = [
+    # Vector store: dense ANN + ICU BM25 FTS + scalar indexes in one embedded store
+    "lancedb>=0.33",
+    "pylance>=0.20",          # lance format: efficient columnar projection (metadata_summary)
+    "pyarrow>=24.0",
+    # Retrieval models (bge-m3 embeddings + bge-reranker cross-encoder)
+    "sentence-transformers>=5.5",
+    # torch is a transitive dep of sentence-transformers; pin it explicitly so
+    # the CPU-only source below applies. The default wheel drags in ~3.5GB of
+    # CUDA/Triton libs that are dead weight here — models run on CPU.
+    "torch>=2.12",
+    # Generation via OpenRouter's OpenAI-compatible API (needs OPENROUTER_API_KEY)
+    "openai>=1.60",
+    # Ingestion: parliament.bg client
+    "requests>=2.34",
+    # API (phase 4)
+    "fastapi>=0.136",
+    "uvicorn[standard]>=0.49",
+]
+
+# Run with uv (per project convention):
+#   uv sync
+#   uv run python -c "import parl_rag; print('ok')"
+#
+# First run of an embeddings/rerank step downloads model weights from Hugging
+# Face (bge-m3 ~2.3GB, bge-reranker-v2-m3 ~2.3GB). Subsequent runs are cached.
+# On a small machine, switch to a lighter embedder:
+#   export PARL_EMBED_MODEL=intfloat/multilingual-e5-base
+
+[tool.uv]
+package = false
+
+# Pull torch from PyTorch's CPU-only wheel index on Linux (the Docker target),
+# avoiding the bundled NVIDIA CUDA runtime. macOS keeps the default PyPI wheel,
+# which is already CPU/MPS-only.
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
+
+[tool.uv.sources]
+torch = [{ index = "pytorch-cpu", marker = "sys_platform == 'linux'" }]

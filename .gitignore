@@ -1,0 +1,51 @@
+# ───────────────────────────── Secrets ──────────────────────────────────────
+# Never commit real keys. The committed template is .env.example.
+.env
+.env.*
+!.env.example
+*.local
+
+# ──────────────────────────── Python / uv ───────────────────────────────────
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.ipynb_checkpoints/
+# uv.lock IS committed — do not ignore it.
+
+# ──────────────────────── Node / Next.js (frontend) ─────────────────────────
+node_modules/
+.next/
+out/
+.turbo/
+next-env.d.ts
+*.tsbuildinfo
+.eslintcache
+# pnpm-lock.yaml IS committed — do not ignore it.
+
+# ────────────────────────────── Data ────────────────────────────────────────
+# Regenerable: the LanceDB index and the raw parliament.bg downloads are rebuilt
+# by the ingest CLI (see backend/INGESTION.md), so they stay out of git.
+/data/lancedb/
+/data/transcripts/
+
+# ────────────────────── Model / HF weight caches ────────────────────────────
+.hf_cache/
+.cache/
+
+# ───────────────────────────── Logs ─────────────────────────────────────────
+*.log
+logs/
+npm-debug.log*
+pnpm-debug.log*
+
+# ───────────────────────── Editors / OS cruft ───────────────────────────────
+.DS_Store
+.idea/
+.vscode/
+*.swp
+*~

@@ -1,0 +1,19 @@
+# Keep the build context small and the image clean. Deps come from uv.lock, not
+# the local .venv; secrets and caches never belong in an image layer.
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# Secrets — injected at runtime via env_file / environment, never baked in.
+.env
+.env.*
+!.env.example
+
+# Docs / local cruft
+*.md
+.python-version
+scripts/
+.DS_Store

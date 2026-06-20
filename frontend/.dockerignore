@@ -1,0 +1,18 @@
+# Deps are reinstalled from pnpm-lock.yaml inside the build; build artifacts and
+# secrets never belong in the context.
+node_modules/
+.next/
+out/
+.turbo/
+
+# Secrets / local env
+.env
+.env.*
+!.env.example
+*.local
+
+# Docs / local cruft
+*.md
+.eslintcache
+*.tsbuildinfo
+.DS_Store

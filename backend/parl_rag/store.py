@@ -98,6 +98,19 @@ class LanceDBStore:
             self._func = get_registry().get("sentence-transformers").create(**kwargs)
         return self._func
 
+    def load_embedder(self):
+        """Load bge-m3 (once) and pin it in LanceDB's model cache.
+
+        LanceDB never embeds through ``self.func``: on every ``table.add()`` /
+        ``search()`` it rebuilds a throwaway embedding function from the table
+        metadata. The model cache is keyed on a *weakref* to the instance that
+        loaded it, so an entry created by a throwaway dies with it and the next
+        call reloads the weights. Loading through ``self.func`` — equal to the
+        throwaways, and alive as long as the store — keeps that entry valid.
+        Cheap after the first call (cache hit).
+        """
+        return self.func.get_embedding_model()
+
     @property
     def schema(self):
         if self._schema is None:
@@ -185,6 +198,7 @@ class LanceDBStore:
         if not chunks:
             return 0
         rows = [self._chunk_to_row(c) for c in chunks]
+        self.load_embedder()  # else table.add() reloads the model on every call
         if self.exists():
             self.table.add(rows)
         else:
@@ -253,6 +267,7 @@ class LanceDBStore:
         where = _build_where(party=party, speaker=speaker, since=since, until=until, date=date)
         fetch = max(k + _RERANK_MARGIN, overfetch) if rerank else k
 
+        self.load_embedder()  # else an un-warmed store reloads the model per query
         q = self.table.search(question, query_type="hybrid")
         if where:
             # prefilter=True: filter BEFORE search, so the candidate pool is the

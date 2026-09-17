@@ -182,6 +182,8 @@ def _ingest_targets(args, targets: list[Target], summary: Summary) -> None:
     print(f"\nIndexing {len(to_index)} transcript(s) → {store.path}/{store.table_name}")
     print("(first run loads bge-m3 — ~2.3GB, downloads weights once)\n")
 
+    store.load_embedder()
+
     for t in to_index:
         if not t.txt_path.exists():
             print(f"  ! {t.sitting.date} id={t.sitting.id}: {t.txt_path.name} missing, skipped")

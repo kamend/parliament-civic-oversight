@@ -29,12 +29,12 @@ def get_store() -> LanceDBStore:
 def warm(*, with_rerank: bool = True) -> None:
     """Eagerly load the models so the first real query isn't slow.
 
-    Touching ``store.func.ndims()`` loads the bge-m3 embedder; instantiating the
+    ``store.load_embedder()`` loads the bge-m3 embedder; instantiating the
     reranker loads bge-reranker-v2-m3. Called from the app's startup lifespan so
     the cost is paid once, before traffic, not on the first user's request.
     """
     store = get_store()
-    store.func.ndims()          # forces the sentence-transformers embedder to load
+    store.load_embedder()
     if with_rerank:
         _ = store.reranker      # forces the cross-encoder to load
 

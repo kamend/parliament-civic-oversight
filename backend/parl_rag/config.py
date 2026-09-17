@@ -21,6 +21,17 @@ LANCEDB_PATH = Path(os.environ.get("LANCEDB_PATH", PROJECT_ROOT / "data" / "lanc
 LANCEDB_TABLE = os.environ.get("LANCEDB_TABLE", "turns")
 
 # --------------------------------------------------------------------------- #
+# Chunking
+# --------------------------------------------------------------------------- #
+# Turns shorter than this many words are not indexed. They are almost always
+# the chair running procedure ("Заповядайте.", "Благодаря Ви, господин Иванов.")
+# — noise that embeds degenerately and that BM25 actively over-scores because it
+# favors very short documents. Substantive short remarks (реплики) run longer.
+# Set 0 to index every turn. Changing this only affects future ingests; pass
+# --force to re-ingest transcripts already in the store.
+MIN_TURN_WORDS = int(os.environ.get("PARL_MIN_TURN_WORDS", "10"))
+
+# --------------------------------------------------------------------------- #
 # .env loading
 # --------------------------------------------------------------------------- #
 # The service needs an OpenRouter key for generation. Rather than make every

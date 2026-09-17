@@ -4,7 +4,7 @@ import functools
 from dataclasses import dataclass
 from typing import Iterator, Sequence
 
-from . import config
+from . import config, prompts
 from .chunking import Chunk
 
 
@@ -52,19 +52,6 @@ def format_sources(chunks: Sequence[Chunk]) -> str:
     return "\n\n".join(blocks)
 
 
-SYSTEM_PROMPT = (
-    "You are a careful research assistant for the Bulgarian Parliament. "
-    "You answer questions strictly from the provided transcript excerpts (sources). "
-    "Rules:\n"
-    "1. Use ONLY the information in the sources. Never rely on outside knowledge.\n"
-    "2. Always attribute statements: say WHO said it (name + party) and WHEN (date).\n"
-    "3. Cite every claim with the source tag, e.g. [S2].\n"
-    "4. If the sources do not contain the answer, say so plainly — do not guess.\n"
-    "5. Answer in the same language as the question (Bulgarian questions get "
-    "Bulgarian answers)."
-)
-
-
 @dataclass
 class AnswerResult:
     text: str
@@ -77,18 +64,13 @@ def _build_user_prompt(question: str, chunks: Sequence[Chunk]) -> str:
     """The user turn: the numbered source blocks, then the question + cite rule.
     Shared by the blocking and streaming generators so the prompt can't drift."""
     sources = format_sources(chunks)
-    return (
-        f"Sources from parliamentary transcripts:\n\n{sources}\n\n"
-        f"---\nQuestion: {question}\n\n"
-        f"Answer using only the sources above, with [S#] citations and "
-        f"speaker/party/date attribution."
-    )
+    return prompts.ANSWER_USER_TEMPLATE.format(sources=sources, question=question)
 
 
 def _build_messages(question: str, chunks: Sequence[Chunk]) -> list[dict]:
     """OpenAI-style message list: the system rules, then the sources + question."""
     return [
-        {"role": "system", "content": SYSTEM_PROMPT},
+        {"role": "system", "content": prompts.ANSWER_SYSTEM_PROMPT},
         {"role": "user", "content": _build_user_prompt(question, chunks)},
     ]
 
@@ -158,15 +140,6 @@ def stream_answer(
 # --------------------------------------------------------------------------- #
 # Contextual Retrieval: generate a situating prefix per chunk
 # --------------------------------------------------------------------------- #
-CONTEXT_PROMPT = (
-    "Here is a chunk we want to situate within the whole transcript so it can be "
-    "retrieved on its own:\n<chunk>\n{chunk}\n</chunk>\n\n"
-    "Give a short, succinct context (1-2 sentences, same language as the chunk) "
-    "that situates this chunk within the sitting: what is being debated, who is "
-    "speaking and their party if known, and the date. Answer ONLY with the context."
-)
-
-
 def generate_chunk_context(chunk_text: str, full_document: str, *,
                            model: str | None = None) -> tuple[str, dict]:
     """'Contextual Retrieval': write a context prefix for one chunk.
@@ -190,7 +163,7 @@ def generate_chunk_context(chunk_text: str, full_document: str, *,
                 "text": f"<document>\n{full_document}\n</document>",
                 "cache_control": {"type": "ephemeral"},  # cache the whole transcript
             }]},
-            {"role": "user", "content": CONTEXT_PROMPT.format(chunk=chunk_text)},
+            {"role": "user", "content": prompts.CONTEXT_PROMPT.format(chunk=chunk_text)},
         ],
     )
     ctx = (resp.choices[0].message.content or "").strip()

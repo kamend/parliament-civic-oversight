@@ -35,6 +35,10 @@ dependencies = [
 [tool.uv]
 package = false
 
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
+
 # Pull torch from PyTorch's CPU-only wheel index on Linux (the Docker target),
 # avoiding the bundled NVIDIA CUDA runtime. macOS keeps the default PyPI wheel,
 # which is already CPU/MPS-only.
@@ -45,3 +49,8 @@ explicit = true
 
 [tool.uv.sources]
 torch = [{ index = "pytorch-cpu", marker = "sys_platform == 'linux'" }]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+]

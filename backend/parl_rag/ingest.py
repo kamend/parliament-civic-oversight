@@ -187,7 +187,7 @@ def _ingest_targets(args, targets: list[Target], summary: Summary) -> None:
             print(f"  ! {t.sitting.date} id={t.sitting.id}: {t.txt_path.name} missing, skipped")
             continue
         transcript = load_transcript(t.txt_path)
-        chunks = chunk_by_turn_windowed(transcript.turns)
+        chunks = chunk_by_turn_windowed(transcript.turns, min_words=config.MIN_TURN_WORDS)
         if not chunks:
             summary.empty += 1
             print(f"  · {transcript.date} id={transcript.id}: no turns, skipped")

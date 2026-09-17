@@ -3,6 +3,8 @@ from __future__ import annotations
 import json
 from contextlib import asynccontextmanager
 from typing import Iterator
+import asyncio
+
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -27,18 +29,19 @@ _MODELS_WARM = False
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Warm the models before serving traffic; never let a load failure (offline,
-    weights missing) crash the app — /health and /filters must still work."""
-    global _MODELS_WARM
-    import anyio
-    try:
-        # Loading bge-m3 + bge-reranker is blocking and slow — run it off the
-        # event loop so startup stays responsive.
-        await anyio.to_thread.run_sync(retrieval.warm)
-        _MODELS_WARM = True
-    except Exception as e:  # noqa: BLE001 — best-effort warmup, report and continue
-        print(f"[startup] model warmup skipped: {e}")
+    async def _warm():
+        global _MODELS_WARM
+        try:
+            print("warming up models")
+            await asyncio.to_thread(retrieval.warm)
+            _MODELS_WARM = True
+            print("models are warm..")
+        except Exception as e:  # noqa: BLE001
+            print(f"[startup] model warmup skipped: {e}")
+
+    task = asyncio.create_task(_warm())
     yield
+    task.cancel()
 
 
 app = FastAPI(title="Parliament RAG", version="0.1.0", lifespan=lifespan)

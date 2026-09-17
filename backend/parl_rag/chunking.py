@@ -106,7 +106,8 @@ def chunk_by_turn(turns: Sequence[Turn], *, min_words: int = 0) -> list[Chunk]:
 # 3. Windowed turns: merge tiny turns, split long ones
 # --------------------------------------------------------------------------- #
 def chunk_by_turn_windowed(turns: Sequence[Turn], *, max_chars: int = 1200,
-                           overlap_chars: int = 150) -> list[Chunk]:
+                           overlap_chars: int = 150,
+                           min_words: int = 0) -> list[Chunk]:
     """Token-aware-ish structural chunking.
 
     Real debates have both 5-word interjections and 2000-word speeches. A pure
@@ -115,9 +116,16 @@ def chunk_by_turn_windowed(turns: Sequence[Turn], *, max_chars: int = 1200,
       * keep short turns whole (we do NOT merge across speakers — that would
         reintroduce the attribution problem from fixed chunking).
     This is the pragmatic default.
+
+    ``min_words`` drops turns below that length, same as in ``chunk_by_turn``:
+    one-line procedural chair turns ("Заповядайте.") embed degenerately and BM25
+    over-scores very short documents, so they pollute the hybrid candidate pool.
+    0 keeps everything.
     """
     chunks: list[Chunk] = []
     for turn in turns:
+        if turn.word_count < min_words:
+            continue
         meta = _turn_meta(turn)
         text = turn.text
         if len(text) <= max_chars:
@@ -139,20 +147,28 @@ def chunk_by_turn_windowed(turns: Sequence[Turn], *, max_chars: int = 1200,
 
 _SENT_RE = re.compile(r"(?<=[.!?…])\s+")
 
-
 def _pack_sentences(text: str, max_chars: int, overlap_chars: int) -> list[str]:
     sentences = _SENT_RE.split(text)
     out: list[str] = []
+
     buf = ""
+    fresh = "" # does not includes the overlap chars
+
     for s in sentences:
-        if buf and len(buf) + len(s) + 1 > max_chars:
+        if  buf and len(buf) + len(s) + 1 > max_chars:  # we reached enough chars
             out.append(buf.strip())
-            # carry a little overlap so a fact split across the boundary survives
             buf = (buf[-overlap_chars:] + " " + s) if overlap_chars else s
+            fresh = s
         else:
-            buf = f"{buf} {s}".strip()
-    if buf.strip():
-        out.append(buf.strip())
+            buf = f"{buf} {s}"
+            fresh = f"{fresh} {s}"
+
+    if fresh:
+        if out and len(fresh) < 200:
+            out[-1] = f"{out[-1]} {fresh}"
+        else:
+            out.append(buf.strip())
+
     return out
 
 

@@ -115,7 +115,7 @@ Set three variables in `backend/.env`:
 
 | Variable | What it is |
 |---|---|
-| `OPENROUTER_API_KEY` | API key for your provider (the name is historical — it's used for any endpoint). |
+| `OPENROUTER_API_KEY` | API key for your provider. The variables are named after OpenRouter, the default, but they apply to whichever endpoint you set. Required for OpenRouter; a keyless local server can leave it empty. |
 | `OPENROUTER_BASE_URL` | The OpenAI-compatible base URL. Defaults to OpenRouter; e.g. `https://api.openai.com/v1`, or `http://localhost:11434/v1` for Ollama. |
 | `PARL_LLM_MODEL` | The model slug to use, as named by that provider (e.g. `openai/gpt-5`, `gpt-4o`, `deepseek/deepseek-chat`). |
 

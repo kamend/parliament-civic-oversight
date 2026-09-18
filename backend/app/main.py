@@ -10,7 +10,8 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 
-from parl_rag import config, generate, router
+from parl_rag import config
+from parl_rag.graph import AskContext, ask_graph
 
 from . import retrieval
 from .schemas import (
@@ -26,13 +27,11 @@ from .schemas import (
 # /api/health so a load balancer / the UI can tell "up" from "warm".
 _MODELS_WARM = False
 
-
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     async def _warm():
         global _MODELS_WARM
         try:
-            print("warming up models")
             await asyncio.to_thread(retrieval.warm)
             _MODELS_WARM = True
             print("models are warm..")
@@ -145,64 +144,68 @@ def ask(req: AskRequest) -> StreamingResponse:
     ``done`` instead, never touching retrieval or generation.
     On any failure mid-stream an ``error`` event is emitted instead of ``done``.
 
+    The flow itself (gate → retrieve → rerank → generate) is the LangGraph graph
+    in ``parl_rag.graph``; this endpoint only translates its stream into SSE.
+
     A plain (sync) generator is used so FastAPI runs the blocking retrieval and
-    the synchronous Anthropic stream in a worker thread, off the event loop.
+    the synchronous model stream in a worker thread, off the event loop.
     """
-    store = retrieval.get_store()
+    context = AskContext(
+        store=retrieval.get_store(),
+        k=req.k,
+        party=req.party,
+        speaker=req.speaker,
+        since=req.since,
+        until=req.until,
+        date=req.date,
+        rerank=req.rerank,
+        route=req.route,
+    )
 
     def event_stream() -> Iterator[str]:
-        # Answerability gate: a too-broad question ("За какво говориха днес?") has
-        # no semantic anchor for the chunks, so grounding it would just confabulate.
-        # Ask the user to narrow instead. The gate fails open (router.assess never
-        # raises), so a router outage simply falls through to normal retrieval.
-        if req.route:
-            assessment = router.assess(req.question)
-            if not assessment.answerable:
-                yield _sse("clarify", {
-                    "message": assessment.message,
-                    "suggestions": assessment.suggestions,
-                    "reason": assessment.reason,
-                })
-                yield _sse("done", {"answer": "", "needs_clarification": True})
-                return
-
+        # The graph reports progress as state updates; each SSE event keys off
+        # the state field that just landed, not the node that wrote it.
+        stage = "retrieval"  # which stage an exception belongs to
         try:
-            hits = store.search(
-                req.question,
-                k=req.k,
-                party=req.party,
-                speaker=req.speaker,
-                since=req.since,
-                until=req.until,
-                date=req.date,
-                rerank=req.rerank,
-            )
-        except Exception as e:  # noqa: BLE001 — surface retrieval errors to the client
-            yield _sse("error", {"stage": "retrieval", "message": str(e)})
-            return
+            for mode, payload in ask_graph.stream(
+                {"question": req.question},
+                context=context,
+                stream_mode=["updates", "messages"],
+            ):
+                if mode == "messages":
+                    chunk, meta = payload
+                    # The gate's model streams too; only the answer is for the user.
+                    if meta.get("langgraph_node") == "generate" and chunk.text:
+                        yield _sse("token", {"text": chunk.text})
+                    continue
 
-        sources = [retrieval.hit_to_source(h, i) for i, h in enumerate(hits, start=1)]
-        yield _sse("sources", {"sources": sources})
-
-        if not hits:
-            # Nothing to ground on — don't call the model, just close cleanly.
-            yield _sse("done", {"answer": "", "no_results": True})
-            return
-
-        chunks = [h.chunk for h in hits]
-        try:
-            for kind, payload in generate.stream_answer(req.question, chunks):
-                if kind == "token":
-                    yield _sse("token", {"text": payload})
-                else:  # ("usage", AnswerResult)
-                    yield _sse("done", {
-                        "answer": payload.text,
-                        "model": payload.model,
-                        "input_tokens": payload.input_tokens,
-                        "output_tokens": payload.output_tokens,
-                    })
+                for update in payload.values():
+                    update = update or {}
+                    assessment = update.get("assessment")
+                    if assessment is not None and not assessment.answerable:
+                        yield _sse("clarify", {
+                            "message": assessment.message,
+                            "suggestions": assessment.suggestions,
+                            "reason": assessment.reason,
+                        })
+                        yield _sse("done", {"answer": "", "needs_clarification": True})
+                    if "hits" in update:
+                        hits = update["hits"]
+                        sources = [retrieval.hit_to_source(h, i) for i, h in enumerate(hits, start=1)]
+                        yield _sse("sources", {"sources": sources})
+                        if not hits:
+                            # Nothing to ground on — the graph ends without calling the model.
+                            yield _sse("done", {"answer": "", "no_results": True})
+                        stage = "generation"
+                    if "answer" in update:
+                        yield _sse("done", {
+                            "answer": update["answer"],
+                            "model": update["model"],
+                            "input_tokens": update["input_tokens"],
+                            "output_tokens": update["output_tokens"],
+                        })
         except (Exception, SystemExit) as e:  # noqa: BLE001 — incl. missing API key (SystemExit)
-            yield _sse("error", {"stage": "generation", "message": str(e)})
+            yield _sse("error", {"stage": stage, "message": str(e)})
 
     return StreamingResponse(
         event_stream(),

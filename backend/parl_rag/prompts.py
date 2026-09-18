@@ -27,19 +27,6 @@ ANSWER_USER_TEMPLATE = (
 )
 
 # --------------------------------------------------------------------------- #
-# Contextual Retrieval: situating prefix per chunk (parl_rag.generate)
-# --------------------------------------------------------------------------- #
-# Asks for a 1-2 sentence context that situates a chunk within its transcript.
-# Field: {chunk}.
-CONTEXT_PROMPT = (
-    "Here is a chunk we want to situate within the whole transcript so it can be "
-    "retrieved on its own:\n<chunk>\n{chunk}\n</chunk>\n\n"
-    "Give a short, succinct context (1-2 sentences, same language as the chunk) "
-    "that situates this chunk within the sitting: what is being debated, who is "
-    "speaking and their party if known, and the date. Answer ONLY with the context."
-)
-
-# --------------------------------------------------------------------------- #
 # Query-routing gate (parl_rag.router)
 # --------------------------------------------------------------------------- #
 # The retrieval system's capabilities and limits, spelled out so the classifier
@@ -69,16 +56,8 @@ ROUTER_SYSTEM_PROMPT = (
     "заседанието'), or wording so vague it could be about anything. A filter "
     "like a party, speaker, or date does NOT by itself turn an anchorless "
     "question into a specific one.\n\n"
-    "Output ONLY a single JSON object — no markdown code fences, no commentary "
-    "before or after it. Do not answer the question itself; only classify it. "
-    "The JSON has these keys:\n"
-    '  "answerable": boolean,\n'
-    '  "reason": short English explanation of the verdict,\n'
-    '  "message": when answerable is false, a brief, polite message IN THE '
-    "QUESTION'S LANGUAGE asking the user to ask something more specific and "
-    "saying why; empty string when answerable is true,\n"
-    '  "suggestions": when answerable is false, an array of up to 3 concrete, '
-    "specific example questions IN THE QUESTION'S LANGUAGE that the user might "
-    "have meant (e.g. about the budget, the euro, judicial reform); empty array "
-    "when answerable is true."
+    # The output shape lives on router.QueryAssessment: its field descriptions
+    # are sent as the tool schema, so they aren't repeated here.
+    "Do not answer the question itself; only classify it, and report the "
+    "verdict by calling the provided tool."
 )

@@ -1,34 +1,62 @@
 from __future__ import annotations
 
-import json
-from dataclasses import dataclass, field
+from pydantic import BaseModel, Field, field_validator
 
-from . import config, prompts
-from .generate import get_client
+from . import llm, prompts
 
 
-@dataclass
-class QueryAssessment:
+class QueryAssessment(BaseModel):
     """The gate's verdict on one question.
 
     ``answerable`` is the only field the dispatch logic branches on. When it's
     False, ``message`` and ``suggestions`` carry the soft clarification shown to
     the user; when True they're empty and ignored. ``reason`` is a short English
     note for logs/debugging, never shown to the user.
+
+    Doubles as the tool schema the router model fills in, so the field
+    descriptions below are part of the prompt.
     """
 
-    answerable: bool
-    reason: str = ""
-    message: str | None = None
-    suggestions: list[str] = field(default_factory=list)
+    answerable: bool = Field(
+        True, description="Whether the retrieval pipeline can answer the question."
+    )
+    reason: str = Field("", description="Short English explanation of the verdict.")
+    message: str | None = Field(
+        None,
+        description="When answerable is false, a brief, polite message IN THE "
+        "QUESTION'S LANGUAGE asking the user to ask something more specific and "
+        "saying why. Empty when answerable is true.",
+    )
+    suggestions: list[str] = Field(
+        default_factory=list,
+        description="When answerable is false, up to 3 concrete, specific example "
+        "questions IN THE QUESTION'S LANGUAGE that the user might have meant "
+        "(e.g. about the budget, the euro, judicial reform). Empty when "
+        "answerable is true.",
+    )
+
+    @field_validator("message")
+    @classmethod
+    def _clean_message(cls, v: str | None) -> str | None:
+        return (v or "").strip() or None
+
+    @field_validator("suggestions")
+    @classmethod
+    def _clean_suggestions(cls, v: list[str]) -> list[str]:
+        """Coerce to a clean list of up to 3 non-empty strings."""
+        return [s.strip() for s in v if s and s.strip()][:3]
 
 
-def assess(question: str, *, model: str | None = None) -> QueryAssessment:
+def assess(question: str) -> QueryAssessment:
     """Classify whether ``question`` is specific enough for the retrieval pipeline.
 
     Returns a :class:`QueryAssessment`. **Never raises** — every failure path
-    (missing key, provider error, malformed JSON) returns an *answerable* verdict
-    so the gate degrades to a no-op rather than blocking a legitimate question.
+    (missing key, provider error, malformed tool call) returns an *answerable*
+    verdict so the gate degrades to a no-op rather than blocking a legitimate
+    question.
+
+    ``method="function_calling"`` because Anthropic models via OpenRouter don't
+    honor ``response_format``, but they do honor tool calls.
     """
     question = (question or "").strip()
     if not question:
@@ -36,80 +64,15 @@ def assess(question: str, *, model: str | None = None) -> QueryAssessment:
         return QueryAssessment(answerable=True, reason="empty question")
 
     try:
-        client = get_client()
-        resp = client.chat.completions.create(
-            model=model or config.LLM_ROUTER_MODEL,
-            max_tokens=400,
-            temperature=0,                       # stable, deterministic verdicts
-            response_format={"type": "json_object"},
-            messages=[
-                {"role": "system", "content": prompts.ROUTER_SYSTEM_PROMPT},
-                {"role": "user", "content": question},
-            ],
+        judge = llm.router_model().with_structured_output(
+            QueryAssessment, method="function_calling"
         )
-        raw = resp.choices[0].message.content or ""
-        return _parse(raw)
-    except Exception as e:  # noqa: BLE001 — fail OPEN: a broken gate must not block
+        verdict = judge.invoke([
+            ("system", prompts.ROUTER_SYSTEM_PROMPT),
+            ("user", question),
+        ])
+        if not verdict.answerable:
+            return verdict
+        return QueryAssessment(answerable=True, reason=verdict.reason)
+    except (Exception, SystemExit) as e:  # noqa: BLE001 — fail OPEN: a broken gate must not block
         return QueryAssessment(answerable=True, reason=f"router error: {e}")
-
-
-def _extract_json(raw: str) -> dict | None:
-    """Pull the JSON object out of a model response, tolerant of wrapping.
-
-    Models routinely ignore "JSON only" and wrap the object in a ```json fence or
-    surround it with prose (observed with Anthropic models via OpenRouter, which
-    don't honor ``response_format``). We try a direct parse first, then fall back
-    to the substring from the first ``{`` to the last ``}``. Returns the parsed
-    dict, or None if nothing parses.
-    """
-    if not raw:
-        return None
-    raw = raw.strip()
-    candidates = [raw]
-    start, end = raw.find("{"), raw.rfind("}")
-    if start != -1 and end > start:
-        candidates.append(raw[start : end + 1])
-    for candidate in candidates:
-        try:
-            obj = json.loads(candidate)
-        except (json.JSONDecodeError, TypeError):
-            continue
-        if isinstance(obj, dict):
-            return obj
-    return None
-
-
-def _parse(raw: str) -> QueryAssessment:
-    """Parse the model's JSON into a :class:`QueryAssessment`, defensively.
-
-    Anything we can't read as a clear *not-answerable* verdict resolves to
-    answerable (fail open). Suggestions are coerced to a clean list of up to 3
-    non-empty strings.
-    """
-    data = _extract_json(raw)
-    if data is None:
-        return QueryAssessment(answerable=True, reason="unparseable router output")
-
-    answerable = bool(data.get("answerable", True))
-    reason = str(data.get("reason") or "")
-    if answerable:
-        return QueryAssessment(answerable=True, reason=reason)
-
-    message = data.get("message")
-    message = str(message).strip() if message else None
-    raw_suggestions = data.get("suggestions") or []
-    suggestions: list[str] = []
-    if isinstance(raw_suggestions, list):
-        for s in raw_suggestions:
-            text = str(s).strip()
-            if text:
-                suggestions.append(text)
-            if len(suggestions) == 3:
-                break
-
-    return QueryAssessment(
-        answerable=False,
-        reason=reason,
-        message=message,
-        suggestions=suggestions,
-    )

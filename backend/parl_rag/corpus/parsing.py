@@ -6,7 +6,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Iterator
 
-from . import config
+from ..settings import settings
+from .parties import ROLE_PREFIXES, normalize_party
 
 # --------------------------------------------------------------------------- #
 # Regexes
@@ -100,7 +101,7 @@ def _split_speaker_header(name_raw: str) -> tuple[str, str | None]:
     """
     role: str | None = None
     name = name_raw.strip()
-    for prefix in config.ROLE_PREFIXES:
+    for prefix in ROLE_PREFIXES:
         if name.startswith(prefix):
             role = prefix
             name = name[len(prefix):].strip()
@@ -114,14 +115,14 @@ def _split_paren(paren: str | None) -> tuple[str | None, str | None]:
     """Split a parenthetical "(ПБ, от място)" into (party, modifier).
 
     The party is folded onto its canonical abbreviation (see
-    :func:`config.normalize_party`) so the same group, however the transcript
+    :func:`parties.normalize_party`) so the same group, however the transcript
     spells it ("ПП" vs "Продължаваме Промяната"), lands under one key."""
     if not paren:
         return None, None
     parts = [p.strip() for p in paren.split(",") if p.strip()]
     if not parts:
         return None, None
-    party = config.normalize_party(parts[0])
+    party = normalize_party(parts[0])
     modifier = ", ".join(parts[1:]) or None
     return party, modifier
 
@@ -233,7 +234,7 @@ def load_transcript(txt_path: Path) -> Transcript:
 
 
 def iter_transcript_files(data_dir: Path | None = None) -> Iterator[Path]:
-    data_dir = data_dir or config.DATA_DIR
+    data_dir = data_dir or settings.data_dir
     yield from sorted(data_dir.glob("*/*.txt"))
 
 

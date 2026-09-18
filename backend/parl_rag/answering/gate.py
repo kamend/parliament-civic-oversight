@@ -13,7 +13,7 @@ class QueryAssessment(BaseModel):
     the user; when True they're empty and ignored. ``reason`` is a short English
     note for logs/debugging, never shown to the user.
 
-    Doubles as the tool schema the router model fills in, so the field
+    Doubles as the tool schema the gate model fills in, so the field
     descriptions below are part of the prompt.
     """
 
@@ -64,7 +64,7 @@ def assess(question: str) -> QueryAssessment:
         return QueryAssessment(answerable=True, reason="empty question")
 
     try:
-        judge = llm.router_model().with_structured_output(
+        judge = llm.gate_model().with_structured_output(
             QueryAssessment, method="function_calling"
         )
         verdict = judge.invoke([
@@ -75,4 +75,4 @@ def assess(question: str) -> QueryAssessment:
             return verdict
         return QueryAssessment(answerable=True, reason=verdict.reason)
     except (Exception, SystemExit) as e:  # noqa: BLE001 — fail OPEN: a broken gate must not block
-        return QueryAssessment(answerable=True, reason=f"router error: {e}")
+        return QueryAssessment(answerable=True, reason=f"gate error: {e}")

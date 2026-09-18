@@ -1,4 +1,4 @@
-"""Tests for parl_rag.chunking._pack_sentences.
+"""Tests for parl_rag.corpus.chunking._pack_sentences.
 
 The function packs sentences into chunks of up to ``max_chars``, carries a
 character overlap across chunk boundaries, and merges a short leftover tail
@@ -8,7 +8,7 @@ Sentences here are synthetic with exact lengths so every packing decision is
 deterministic and the expected chunks can be written out literally.
 """
 
-from parl_rag.chunking import _pack_sentences
+from parl_rag.corpus.chunking import _pack_sentences
 
 
 def sent(i: int, length: int, terminator: str = ".") -> str:

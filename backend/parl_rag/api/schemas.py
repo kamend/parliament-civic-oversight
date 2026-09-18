@@ -4,6 +4,8 @@ from typing import Optional
 
 from pydantic import BaseModel, Field
 
+from ..retrieval.store import SearchHit
+
 
 # --------------------------------------------------------------------------- #
 # /api/ask  — request
@@ -49,6 +51,31 @@ class SourceItem(BaseModel):
     hybrid_score: float
     reranked: bool
     prior_rank: Optional[int] = None
+
+    @classmethod
+    def from_hit(cls, hit: SearchHit, n: int) -> SourceItem:
+        """Flatten a ``SearchHit``. ``n`` is the 1-based position in the final
+        list — the number the answer cites as ``[S{n}]`` and the frontend keys
+        its source chips on."""
+        c = hit.chunk
+        m = c.metadata
+        return cls(
+            n=n,
+            id=c.id,
+            text=c.text,
+            speaker=c.speaker,
+            speaker_raw=m.get("speaker_raw"),
+            role=m.get("role"),
+            party=c.party,
+            date=c.date,
+            transcript_id=m.get("transcript_id"),
+            sitting=m.get("sitting"),
+            turn_index=m.get("turn_index"),
+            score=hit.score,
+            hybrid_score=hit.hybrid_score,
+            reranked=hit.reranked,
+            prior_rank=hit.prior_rank,
+        )
 
 
 # --------------------------------------------------------------------------- #
@@ -117,7 +144,7 @@ class HealthResponse(BaseModel):
     models_warm: bool = Field(..., description="True once embed + rerank models are loaded.")
     embed_model: str
     rerank_model: str
-    llm_model: str = Field(..., description="OpenRouter slug used for generation.")
+    llm_model: str = Field(..., description="Model slug used for generation.")
 
 
 # --------------------------------------------------------------------------- #

@@ -10,7 +10,7 @@ from typing import Iterator
 
 import requests
 
-from . import config
+from ..settings import settings
 
 BASE = "https://www.parliament.bg/api/v1"
 MODEL = "Pl_StenV"  # plenary stenograms (committee transcripts use a different model)
@@ -45,7 +45,7 @@ class DownloadResult:
 def html_to_text(html: str) -> str:
     """Crude but adequate HTML → plain text for a transcript body.
 
-    Preserves the paragraph structure :mod:`parl_rag.parsing` relies on: ``<br>``
+    Preserves the paragraph structure :mod:`parl_rag.corpus.parsing` relies on: ``<br>``
     becomes a single newline, ``</p>`` a blank line (paragraph break), then all
     remaining tags are dropped and entities unescaped.
     """
@@ -136,7 +136,7 @@ class ParliamentClient:
         not a placeholder) is left untouched — no network call. Placeholders are
         always refetched, since the real transcript may have been published since.
         """
-        data_dir = data_dir or config.DATA_DIR
+        data_dir = data_dir or settings.data_dir
         out_dir = self.month_dir(data_dir, sitting.year, sitting.month)
         stem = f"{sitting.date}_{sitting.id}"
         txt_path = out_dir / f"{stem}.txt"

@@ -19,7 +19,7 @@ services:
     env_file:
       - ./backend/.env
     environment:
-      # Point the code at the mounted volumes (config.py honours these).
+      # Point the code at the mounted volumes (parl_rag/settings.py honours these).
       PARL_DATA_DIR: /data/transcripts
       LANCEDB_PATH: /data/lancedb
       # Cache the ~5 GB of HuggingFace weights on a named volume, not the image.

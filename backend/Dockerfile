@@ -26,11 +26,10 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 
 # Application code (changes most often → last).
 COPY parl_rag ./parl_rag
-COPY app ./app
 
 # Run the venv's binaries directly, no `uv run` wrapper needed.
 ENV PATH="/app/.venv/bin:$PATH"
 
 EXPOSE 8077
 
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8077"]
+CMD ["uvicorn", "parl_rag.api.main:app", "--host", "0.0.0.0", "--port", "8077"]

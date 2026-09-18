@@ -1,7 +1,11 @@
 from __future__ import annotations
 
+from typing import Sequence
+
+from ..corpus.chunking import Chunk
+
 # --------------------------------------------------------------------------- #
-# Answer generation (parl_rag.generate)
+# Answer generation (the graph's generate node)
 # --------------------------------------------------------------------------- #
 # System rules for the grounded, cited answer. Governs attribution, citation
 # format, and refusal-when-unsupported behavior.
@@ -27,7 +31,7 @@ ANSWER_USER_TEMPLATE = (
 )
 
 # --------------------------------------------------------------------------- #
-# Query-routing gate (parl_rag.router)
+# Answerability gate (answering/gate.py)
 # --------------------------------------------------------------------------- #
 # The retrieval system's capabilities and limits, spelled out so the classifier
 # judges "can THIS pipeline answer it", not "is this a reasonable question".
@@ -56,8 +60,32 @@ ROUTER_SYSTEM_PROMPT = (
     "заседанието'), or wording so vague it could be about anything. A filter "
     "like a party, speaker, or date does NOT by itself turn an anchorless "
     "question into a specific one.\n\n"
-    # The output shape lives on router.QueryAssessment: its field descriptions
+    # The output shape lives on gate.QueryAssessment: its field descriptions
     # are sent as the tool schema, so they aren't repeated here.
     "Do not answer the question itself; only classify it, and report the "
     "verdict by calling the provided tool."
 )
+
+
+# --------------------------------------------------------------------------- #
+# Context assembly
+# --------------------------------------------------------------------------- #
+def format_sources(chunks: Sequence[Chunk]) -> str:
+    """Render chunks as numbered, attributed source blocks for the prompt."""
+    blocks = []
+    for i, c in enumerate(chunks, start=1):
+        who = c.speaker or "неизвестен говорител"
+        party = f", {c.party}" if c.party else ""
+        date = c.date or "?"
+        role = f" [{c.metadata.get('role')}]" if c.metadata.get("role") else ""
+        blocks.append(f"[S{i}] ({who}{party}{role}, {date})\n{c.text.strip()}")
+    return "\n\n".join(blocks)
+
+
+def build_messages(question: str, chunks: Sequence[Chunk]) -> list[tuple[str, str]]:
+    """The chat messages for the answer model: the system rules, then the
+    numbered source blocks with the question + cite rule."""
+    return [
+        ("system", ANSWER_SYSTEM_PROMPT),
+        ("user", ANSWER_USER_TEMPLATE.format(sources=format_sources(chunks), question=question)),
+    ]

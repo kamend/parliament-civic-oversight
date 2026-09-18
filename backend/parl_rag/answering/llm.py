@@ -4,11 +4,11 @@ import functools
 
 from langchain_openai import ChatOpenAI
 
-from . import config
+from ..settings import settings
 
 
 def _is_openrouter() -> bool:
-    return "openrouter.ai" in config.OPENROUTER_BASE_URL
+    return "openrouter.ai" in settings.openrouter_base_url
 
 
 def _chat_model(model: str, **kwargs) -> ChatOpenAI:
@@ -19,7 +19,8 @@ def _chat_model(model: str, **kwargs) -> ChatOpenAI:
     local server (Ollama, LM Studio) needs none, and any other provider reports
     a bad key in its own words.
     """
-    if _is_openrouter() and not config.OPENROUTER_API_KEY:
+    api_key = settings.openrouter_api_key.get_secret_value()
+    if _is_openrouter() and not api_key:
         raise SystemExit(
             "No OPENROUTER_API_KEY found. Either create backend/.env with:\n"
             "    OPENROUTER_API_KEY=sk-or-...\n"
@@ -29,14 +30,14 @@ def _chat_model(model: str, **kwargs) -> ChatOpenAI:
     # Optional attribution on OpenRouter's dashboards / leaderboards. Other
     # endpoints have no use for these headers, so they aren't sent there.
     headers = {
-        "HTTP-Referer": config.OPENROUTER_SITE_URL,
-        "X-Title": config.OPENROUTER_APP_TITLE,
+        "HTTP-Referer": settings.openrouter_site_url,
+        "X-Title": settings.openrouter_app_title,
     } if _is_openrouter() else None
     return ChatOpenAI(
         model=model,
-        base_url=config.OPENROUTER_BASE_URL,
+        base_url=settings.openrouter_base_url,
         # The client rejects an empty key, so keyless servers get a placeholder.
-        api_key=config.OPENROUTER_API_KEY or "not-needed",
+        api_key=api_key or "not-needed",
         default_headers=headers,
         **kwargs,
     )
@@ -46,11 +47,11 @@ def _chat_model(model: str, **kwargs) -> ChatOpenAI:
 def answer_model() -> ChatOpenAI:
     """The generator. ``stream_usage=True`` asks OpenRouter to append a final
     usage-only chunk, which LangChain surfaces as ``usage_metadata``."""
-    return _chat_model(config.LLM_MODEL, max_tokens=4096, stream_usage=True)
+    return _chat_model(settings.llm_model, max_tokens=4096, stream_usage=True)
 
 
 @functools.lru_cache(maxsize=1)
-def router_model() -> ChatOpenAI:
+def gate_model() -> ChatOpenAI:
     """The answerability gate's model: cheap, and temperature 0 for stable
     verdicts."""
-    return _chat_model(config.LLM_ROUTER_MODEL, max_tokens=400, temperature=0)
+    return _chat_model(settings.llm_router_model, max_tokens=400, temperature=0)

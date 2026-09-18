@@ -40,7 +40,7 @@ retrieval in isolation.
 ## Start the server
 
 ```bash
-uv run uvicorn app.main:app --host 127.0.0.1 --port 8077
+uv run uvicorn parl_rag.api.main:app --host 127.0.0.1 --port 8077
 ```
 
 On startup the app **warms the models once** — bge-m3 (embedder) and

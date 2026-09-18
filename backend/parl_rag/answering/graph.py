@@ -7,9 +7,10 @@ from langgraph.graph import END, START, StateGraph
 from langgraph.runtime import Runtime
 from typing_extensions import TypedDict
 
-from . import config, generate, llm, router
-from .router import QueryAssessment
-from .store import LanceDBStore, SearchHit
+from ..retrieval.store import LanceDBStore, SearchHit
+from ..settings import settings
+from . import gate, llm, prompts
+from .gate import QueryAssessment
 
 
 @dataclass
@@ -46,12 +47,12 @@ class AskState(TypedDict, total=False):
 # --------------------------------------------------------------------------- #
 # Nodes
 # --------------------------------------------------------------------------- #
-def gate(state: AskState) -> dict:
+def check_answerable(state: AskState) -> dict:
     """Answerability gate: a too-broad question ("За какво говориха днес?") has
     no semantic anchor for the chunks, so grounding it would just confabulate.
-    Fails open (router.assess never raises), so a router outage simply falls
+    Fails open (gate.assess never raises), so a gate outage simply falls
     through to normal retrieval."""
-    return {"assessment": router.assess(state["question"])}
+    return {"assessment": gate.assess(state["question"])}
 
 
 def retrieve(state: AskState, runtime: Runtime[AskContext]) -> dict:
@@ -80,11 +81,11 @@ def generate_answer(state: AskState) -> dict:
     LangGraph still surfaces the tokens as the model produces them.
     """
     chunks = [h.chunk for h in state["hits"]]
-    msg = llm.answer_model().invoke(generate.build_messages(state["question"], chunks))
+    msg = llm.answer_model().invoke(prompts.build_messages(state["question"], chunks))
     usage = msg.usage_metadata or {}
     return {
         "answer": msg.text,
-        "model": msg.response_metadata.get("model_name") or config.LLM_MODEL,
+        "model": msg.response_metadata.get("model_name") or settings.llm_model,
         "input_tokens": usage.get("input_tokens", 0),
         "output_tokens": usage.get("output_tokens", 0),
     }
@@ -114,7 +115,7 @@ def build_graph():
     early exits for a too-broad question and for an empty retrieval."""
     return (
         StateGraph(AskState, context_schema=AskContext)
-        .add_node("gate", gate)
+        .add_node("gate", check_answerable)
         .add_node("retrieve", retrieve)
         .add_node("rerank", rerank)
         .add_node("generate", generate_answer)

@@ -61,6 +61,17 @@ pnpm install
 pnpm dev                      # http://localhost:3000
 ```
 
+### Both at once
+
+`dev.sh` at the project root starts the backend and the frontend together and
+labels each line of output. Ctrl+C stops both.
+
+```bash
+./dev.sh                      # backend on 8077, frontend on 3000
+./dev.sh --reload             # also restart the backend on code changes (reloads the models, so it is slow)
+BACKEND_PORT=8078 FRONTEND_PORT=3001 ./dev.sh
+```
+
 ## Run with Docker
 
 A `docker-compose.yml` runs both services together. The backend reads the

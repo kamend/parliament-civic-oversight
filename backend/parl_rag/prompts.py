@@ -27,19 +27,6 @@ ANSWER_USER_TEMPLATE = (
 )
 
 # --------------------------------------------------------------------------- #
-# Contextual Retrieval: situating prefix per chunk (parl_rag.generate)
-# --------------------------------------------------------------------------- #
-# Asks for a 1-2 sentence context that situates a chunk within its transcript.
-# Field: {chunk}.
-CONTEXT_PROMPT = (
-    "Here is a chunk we want to situate within the whole transcript so it can be "
-    "retrieved on its own:\n<chunk>\n{chunk}\n</chunk>\n\n"
-    "Give a short, succinct context (1-2 sentences, same language as the chunk) "
-    "that situates this chunk within the sitting: what is being debated, who is "
-    "speaking and their party if known, and the date. Answer ONLY with the context."
-)
-
-# --------------------------------------------------------------------------- #
 # Query-routing gate (parl_rag.router)
 # --------------------------------------------------------------------------- #
 # The retrieval system's capabilities and limits, spelled out so the classifier

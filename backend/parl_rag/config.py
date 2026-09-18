@@ -94,13 +94,10 @@ RERANK_MODEL = os.environ.get("PARL_RERANK_MODEL", "BAAI/bge-reranker-v2-m3")
 # (Verify the exact slug on openrouter.ai/models — they don't carry date suffixes.)
 LLM_MODEL = os.environ.get("PARL_LLM_MODEL", "anthropic/claude-opus-4.8")
 
-# A cheaper/faster model for the high-volume, ingestion-time context step.
-LLM_CONTEXT_MODEL = os.environ.get("PARL_LLM_CONTEXT_MODEL", "anthropic/claude-haiku-4.5")
-
 # The query-routing gate (parl_rag.router) runs once before every retrieval, so
-# it wants to be cheap and fast — default to the same light model as the context
-# step. Override independently if you want a stronger judge for the gate.
-LLM_ROUTER_MODEL = os.environ.get("PARL_LLM_ROUTER_MODEL", LLM_CONTEXT_MODEL)
+# it wants to be cheap and fast — default to a light model. Override if you want
+# a stronger judge for the gate.
+LLM_ROUTER_MODEL = os.environ.get("PARL_LLM_ROUTER_MODEL", "anthropic/claude-haiku-4.5")
 
 # --------------------------------------------------------------------------- #
 # OpenRouter (OpenAI-compatible LLM gateway)

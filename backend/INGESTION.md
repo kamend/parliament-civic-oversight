@@ -20,7 +20,7 @@ New sittings happen a few times a week. To pull the current month and fold any
 new days into the index:
 
 ```bash
-uv run python -m parl_rag.ingest --year 2026 --month 6
+uv run python -m parl_rag.cli ingest --year 2026 --month 6
 ```
 
 This is **safe to re-run**: each sitting is upserted by `transcript_id`
@@ -31,7 +31,7 @@ that are still placeholders are skipped until their transcript is published.
 To avoid re-downloading days you already have on disk, add `--skip-existing`:
 
 ```bash
-uv run python -m parl_rag.ingest --year 2026 --month 6 --skip-existing
+uv run python -m parl_rag.cli ingest --year 2026 --month 6 --skip-existing
 ```
 
 ---
@@ -48,10 +48,10 @@ Pick exactly one date selector:
 
 ```bash
 # a single day
-uv run python -m parl_rag.ingest --date 2026-06-11
+uv run python -m parl_rag.cli ingest --date 2026-06-11
 
 # backfill a span of months
-uv run python -m parl_rag.ingest --since 2026-04 --until 2026-06
+uv run python -m parl_rag.cli ingest --since 2026-04 --until 2026-06
 ```
 
 Each sitting is saved as three files under
@@ -71,7 +71,7 @@ body, plain text). The `.txt` is what the parser reads.
 | `--delay 0.5` | Seconds to wait between downloads (be polite to parliament.bg). |
 | `--data-dir`, `--db-path`, `--table` | Override the transcript dir / LanceDB path / table name. |
 
-See everything with `uv run python -m parl_rag.ingest --help`.
+See everything with `uv run python -m parl_rag.cli ingest --help`.
 
 ---
 
@@ -81,19 +81,19 @@ See everything with `uv run python -m parl_rag.ingest --help`.
 the table):
 
 ```bash
-uv run python -m parl_rag.ingest --since 2026-04 --until 2026-06 --offline --reset
+uv run python -m parl_rag.cli ingest --since 2026-04 --until 2026-06 --offline --reset
 ```
 
 **Re-index just one day** (e.g. its transcript got published or corrected):
 
 ```bash
-uv run python -m parl_rag.ingest --date 2026-06-11
+uv run python -m parl_rag.cli ingest --date 2026-06-11
 ```
 
 **Fresh download of a month without touching files you already have:**
 
 ```bash
-uv run python -m parl_rag.ingest --year 2026 --month 6 --skip-existing
+uv run python -m parl_rag.cli ingest --year 2026 --month 6 --skip-existing
 ```
 
 ---
@@ -128,12 +128,12 @@ print(s.metadata_summary())   # parties, speakers, date range — feeds /api/fil
 "
 ```
 
-A quick search smoke-test — use the `scripts/query.py` helper:
+A quick search smoke-test — use the `query` command:
 
 ```bash
-uv run python scripts/query.py "бюджет" -k 3
-uv run python scripts/query.py "пенсии" --party ВЪЗРАЖДАНЕ --no-rerank
-uv run python scripts/query.py "еврото" --since 2026-06-01 --full
+uv run python -m parl_rag.cli query "бюджет" -k 3
+uv run python -m parl_rag.cli query "пенсии" --party ВЪЗРАЖДАНЕ --no-rerank
+uv run python -m parl_rag.cli query "еврото" --since 2026-06-01 --full
 ```
 
 It runs the same hybrid → filter → rerank path the API uses and prints the hits

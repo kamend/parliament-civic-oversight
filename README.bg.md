@@ -34,7 +34,7 @@ uv sync                       # инсталира зависимостите в
 cp .env.example .env          # задайте OPENROUTER_API_KEY (вижте "LLM доставчик" по-долу)
 
 # Изтегляне и индексиране на месец заседания (изберете произволен селектор на дата):
-uv run python -m parl_rag.ingest --year 2026 --month 6
+uv run python -m parl_rag.cli ingest --year 2026 --month 6
 ```
 
 При първото изпълнение се изтегля моделът за вграждане (`bge-m3`, ~2.3 GB) от
@@ -48,7 +48,7 @@ Hugging Face и се кешира. Повторното изпълнение е 
 От `backend/` (същата среда като при постъпването на данни):
 
 ```bash
-uv run uvicorn app.main:app --host 127.0.0.1 --port 8077
+uv run uvicorn parl_rag.api.main:app --host 127.0.0.1 --port 8077
 ```
 
 Обслужва API-то на `http://127.0.0.1:8077` (Swagger UI на `/docs`). Повече в
@@ -93,10 +93,10 @@ CLI инструментът за постъпване на данни рабо�
 
 ```bash
 # Стекът вече работи (docker compose up) — изпълнете вътре в живия контейнер:
-docker compose exec backend python -m parl_rag.ingest --year 2026 --month 6
+docker compose exec backend python -m parl_rag.cli ingest --year 2026 --month 6
 
 # Стекът е спрян — изпълнете еднократен контейнер, който се самопочиства:
-docker compose run --rm backend python -m parl_rag.ingest --year 2026 --month 6
+docker compose run --rm backend python -m parl_rag.cli ingest --year 2026 --month 6
 ```
 
 Другите селектори работят по същия начин: `--date 2026-06-11` (един ден),

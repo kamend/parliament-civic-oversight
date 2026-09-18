@@ -3,40 +3,13 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from parl_rag import config
-from parl_rag.parsing import Transcript, has_turns, load_transcript
-from parl_rag.store import LanceDBStore, SearchHit
+from ..settings import settings
+from .parsing import Transcript, has_turns, load_transcript
 
 # Unpublished sittings carry only parliament.bg's ~700-byte "published within 7
 # days" notice; a real transcript is hundreds of KB. We stat the file and only
 # read the small ones to confirm — large files are certainly real transcripts.
 _PLACEHOLDER_MAX_BYTES = 2000
-
-# Process-wide singleton. Built lazily (or eagerly at startup via warm()) and
-# reused for every request — never per-request, or every query would reload GBs
-# of model weights.
-_store: LanceDBStore | None = None
-
-
-def get_store() -> LanceDBStore:
-    """Return the shared store, constructing it on first use."""
-    global _store
-    if _store is None:
-        _store = LanceDBStore()
-    return _store
-
-
-def warm(*, with_rerank: bool = True) -> None:
-    """Eagerly load the models so the first real query isn't slow.
-
-    ``store.load_embedder()`` loads the bge-m3 embedder; instantiating the
-    reranker loads bge-reranker-v2-m3. Called from the app's startup lifespan so
-    the cost is paid once, before traffic, not on the first user's request.
-    """
-    store = get_store()
-    store.load_embedder()
-    if with_rerank:
-        _ = store.reranker      # forces the cross-encoder to load
 
 
 def load_transcript_by_id(transcript_id: str) -> Transcript | None:
@@ -50,7 +23,7 @@ def load_transcript_by_id(transcript_id: str) -> Transcript | None:
     # Guard against path traversal / odd ids: transcript ids are bare integers.
     if not transcript_id.isdigit():
         return None
-    matches = sorted(config.DATA_DIR.glob(f"*/*_{transcript_id}.txt"))
+    matches = sorted(settings.data_dir.glob(f"*/*_{transcript_id}.txt"))
     if not matches:
         return None
     return load_transcript(Path(matches[0]))
@@ -83,7 +56,7 @@ def list_sittings() -> dict:
     add an in-process cache here if it ever isn't.
     """
     sittings: list[dict] = []
-    for txt_path in sorted(config.DATA_DIR.glob("*/*.txt")):
+    for txt_path in sorted(settings.data_dir.glob("*/*.txt")):
         date, _, tid = txt_path.stem.partition("_")  # "2026-05-22_11129"
         title: str | None = None
         json_path = txt_path.with_suffix(".json")
@@ -106,30 +79,3 @@ def list_sittings() -> dict:
     sittings.sort(key=lambda s: (s["date"], s["id"]), reverse=True)
     months = sorted({s["month"] for s in sittings}, reverse=True)
     return {"sittings": sittings, "months": months}
-
-
-def hit_to_source(hit: SearchHit, n: int) -> dict:
-    """Flatten a ``SearchHit`` into the wire ``SourceItem`` dict.
-
-    ``n`` is the 1-based position in the reranked list — the number the answer
-    cites as ``[S{n}]`` and the frontend keys its source chips on.
-    """
-    c = hit.chunk
-    m = c.metadata
-    return {
-        "n": n,
-        "id": c.id,
-        "text": c.text,
-        "speaker": c.speaker,
-        "speaker_raw": m.get("speaker_raw"),
-        "role": m.get("role"),
-        "party": c.party,
-        "date": c.date,
-        "transcript_id": m.get("transcript_id"),
-        "sitting": m.get("sitting"),
-        "turn_index": m.get("turn_index"),
-        "score": hit.score,
-        "hybrid_score": hit.hybrid_score,
-        "reranked": hit.reranked,
-        "prior_rank": hit.prior_rank,
-    }

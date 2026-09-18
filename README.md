@@ -33,7 +33,7 @@ uv sync                       # install deps into .venv
 cp .env.example .env          # set OPENROUTER_API_KEY (see "LLM provider" below)
 
 # Download and index a month of sittings (pick any date selector):
-uv run python -m parl_rag.ingest --year 2026 --month 6
+uv run python -m parl_rag.cli ingest --year 2026 --month 6
 ```
 
 The first run downloads the embedding model (`bge-m3`, ~2.3 GB) from Hugging Face
@@ -47,7 +47,7 @@ replaced rather than duplicated. Other selectors: `--date 2026-06-11` (one day),
 From `backend/` (same environment as ingestion):
 
 ```bash
-uv run uvicorn app.main:app --host 127.0.0.1 --port 8077
+uv run uvicorn parl_rag.api.main:app --host 127.0.0.1 --port 8077
 ```
 
 Serves the API at `http://127.0.0.1:8077` (Swagger UI at `/docs`). More in
@@ -91,10 +91,10 @@ already wired up by `docker-compose.yml`. Pick the form that matches your state:
 
 ```bash
 # Stack already running (docker compose up) — run inside the live container:
-docker compose exec backend python -m parl_rag.ingest --year 2026 --month 6
+docker compose exec backend python -m parl_rag.cli ingest --year 2026 --month 6
 
 # Stack down — run a one-off container that cleans itself up:
-docker compose run --rm backend python -m parl_rag.ingest --year 2026 --month 6
+docker compose run --rm backend python -m parl_rag.cli ingest --year 2026 --month 6
 ```
 
 Other selectors work the same: `--date 2026-06-11` (one day),

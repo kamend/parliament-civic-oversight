@@ -15,5 +15,4 @@ __pycache__/
 # Docs / local cruft
 *.md
 .python-version
-scripts/
 .DS_Store

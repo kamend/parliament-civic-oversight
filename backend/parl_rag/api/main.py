@@ -1,39 +1,43 @@
 from __future__ import annotations
 
+import asyncio
 import json
 from contextlib import asynccontextmanager
 from typing import Iterator
-import asyncio
 
-
-from fastapi import FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 
-from parl_rag import config
-from parl_rag.graph import AskContext, ask_graph
-
-from . import retrieval
+from ..answering.graph import AskContext, ask_graph
+from ..corpus import sittings as corpus_sittings
+from ..retrieval.store import LanceDBStore
+from ..settings import settings
+from .deps import get_store
 from .schemas import (
     AskRequest,
     FiltersResponse,
     HealthResponse,
     SittingsResponse,
+    SourceItem,
     TranscriptResponse,
     TranscriptTurn,
 )
 
-# Set True once the startup lifespan finishes loading the models. Surfaced by
-# /api/health so a load balancer / the UI can tell "up" from "warm".
-_MODELS_WARM = False
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # Constructing the store is cheap: it opens nothing and loads no model until
+    # first use. The warmup task below is what pays for the weights.
+    app.state.store = LanceDBStore()
+    # Set True once warmup finishes. Surfaced by /api/health so a load balancer
+    # / the UI can tell "up" from "warm".
+    app.state.models_warm = False
+
     async def _warm():
-        global _MODELS_WARM
         try:
-            await asyncio.to_thread(retrieval.warm)
-            _MODELS_WARM = True
+            await asyncio.to_thread(app.state.store.warm)
+            app.state.models_warm = True
             print("models are warm..")
         except Exception as e:  # noqa: BLE001
             print(f"[startup] model warmup skipped: {e}")
@@ -45,11 +49,10 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="Parliament RAG", version="0.1.0", lifespan=lifespan)
 
-# CORS — config.CORS_ORIGIN is a comma-separated origin list (frontend dev + prod).
-_origins = [o.strip() for o in config.CORS_ORIGIN.split(",") if o.strip()]
+# CORS — settings.cors_origin is a comma-separated origin list (frontend dev + prod).
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=_origins,
+    allow_origins=settings.cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -69,25 +72,24 @@ def _sse(event: str, data: dict) -> str:
 # Endpoints
 # --------------------------------------------------------------------------- #
 @app.get("/api/health", response_model=HealthResponse)
-def health() -> HealthResponse:
+def health(request: Request, store: LanceDBStore = Depends(get_store)) -> HealthResponse:
     """Readiness probe: confirms the store opens and reports row count + warmth."""
-    store = retrieval.get_store()
     rows = store.count()  # 0 (and status 'empty') if the table isn't built yet
     return HealthResponse(
         status="ok" if store.exists() else "empty",
         table=store.table_name,
         rows=rows,
-        models_warm=_MODELS_WARM,
-        embed_model=config.EMBED_MODEL,
-        rerank_model=config.RERANK_MODEL,
-        llm_model=config.LLM_MODEL,
+        models_warm=request.app.state.models_warm,
+        embed_model=settings.embed_model,
+        rerank_model=settings.rerank_model,
+        llm_model=settings.llm_model,
     )
 
 
 @app.get("/api/filters", response_model=FiltersResponse)
-def filters() -> FiltersResponse:
+def filters(store: LanceDBStore = Depends(get_store)) -> FiltersResponse:
     """Distinct parties / speakers and the date range, for the UI filter bar."""
-    return FiltersResponse(**retrieval.get_store().metadata_summary())
+    return FiltersResponse(**store.metadata_summary())
 
 
 @app.get("/api/sittings", response_model=SittingsResponse)
@@ -96,7 +98,7 @@ def sittings() -> SittingsResponse:
     powers the browse-all-sittings page and its month filter. Sitting-level
     metadata only; the full transcript is fetched per sitting via the endpoint
     below."""
-    return SittingsResponse(**retrieval.list_sittings())
+    return SittingsResponse(**corpus_sittings.list_sittings())
 
 
 @app.get("/api/transcript/{transcript_id}", response_model=TranscriptResponse)
@@ -107,7 +109,7 @@ def transcript(transcript_id: str) -> TranscriptResponse:
     source came from, then scrolls to and highlights the cited ``turn_index``.
     404 if no transcript with that id is on disk.
     """
-    tr = retrieval.load_transcript_by_id(transcript_id)
+    tr = corpus_sittings.load_transcript_by_id(transcript_id)
     if tr is None:
         raise HTTPException(status_code=404, detail=f"Стенограма {transcript_id} не е открита.")
     return TranscriptResponse(
@@ -133,7 +135,7 @@ def transcript(transcript_id: str) -> TranscriptResponse:
 
 
 @app.post("/api/ask")
-def ask(req: AskRequest) -> StreamingResponse:
+def ask(req: AskRequest, store: LanceDBStore = Depends(get_store)) -> StreamingResponse:
     """Retrieve, then stream a grounded cited answer as SSE.
 
     Event sequence:
@@ -145,13 +147,13 @@ def ask(req: AskRequest) -> StreamingResponse:
     On any failure mid-stream an ``error`` event is emitted instead of ``done``.
 
     The flow itself (gate → retrieve → rerank → generate) is the LangGraph graph
-    in ``parl_rag.graph``; this endpoint only translates its stream into SSE.
+    in ``parl_rag.answering.graph``; this endpoint only translates its stream into SSE.
 
     A plain (sync) generator is used so FastAPI runs the blocking retrieval and
     the synchronous model stream in a worker thread, off the event loop.
     """
     context = AskContext(
-        store=retrieval.get_store(),
+        store=store,
         k=req.k,
         party=req.party,
         speaker=req.speaker,
@@ -191,7 +193,10 @@ def ask(req: AskRequest) -> StreamingResponse:
                         yield _sse("done", {"answer": "", "needs_clarification": True})
                     if "hits" in update:
                         hits = update["hits"]
-                        sources = [retrieval.hit_to_source(h, i) for i, h in enumerate(hits, start=1)]
+                        sources = [
+                            SourceItem.from_hit(h, i).model_dump()
+                            for i, h in enumerate(hits, start=1)
+                        ]
                         yield _sse("sources", {"sources": sources})
                         if not hits:
                             # Nothing to ground on — the graph ends without calling the model.

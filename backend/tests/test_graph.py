@@ -1,45 +1,13 @@
 """The ask graph's routing and streaming, with the store and both models faked
-so nothing is loaded from disk and no API is called."""
+(see conftest.py) so nothing is loaded from disk and no API is called."""
 from __future__ import annotations
 
 import pytest
-from langchain_core.language_models.fake_chat_models import GenericFakeChatModel
-from langchain_core.messages import AIMessage
+from conftest import ANSWER, FakeStore
 
-from parl_rag import graph, llm, router
-from parl_rag.chunking import Chunk
-from parl_rag.graph import AskContext, ask_graph
-from parl_rag.router import QueryAssessment
-from parl_rag.store import SearchHit
-
-
-def _hit(i: int) -> SearchHit:
-    chunk = Chunk(id=f"c{i}", text=f"text {i}", metadata={
-        "speaker": "Иван Иванов", "party": "X", "date": "2026-05-22",
-    })
-    return SearchHit(chunk=chunk, score=1.0 / i, hybrid_score=1.0 / i, reranked=False)
-
-
-class FakeStore:
-    def __init__(self, n_candidates: int):
-        self.n = n_candidates
-        self.reranked = False
-
-    def hybrid_search(self, question, *, k, rerank, **filters):
-        return [_hit(i) for i in range(1, self.n + 1)][: (self.n if rerank else k)]
-
-    def rerank_hits(self, question, candidates, *, k):
-        self.reranked = True
-        return list(reversed(candidates))[:k]
-
-
-@pytest.fixture(autouse=True)
-def fake_models(monkeypatch):
-    monkeypatch.setattr(
-        llm, "answer_model",
-        lambda: GenericFakeChatModel(messages=iter([AIMessage(content="Отговор [S1].")])),
-    )
-    monkeypatch.setattr(router, "assess", lambda q: QueryAssessment(answerable=True))
+from parl_rag.answering import gate, llm
+from parl_rag.answering.gate import QueryAssessment
+from parl_rag.answering.graph import AskContext, ask_graph
 
 
 def test_full_path_reranks_then_answers():
@@ -47,7 +15,7 @@ def test_full_path_reranks_then_answers():
     out = ask_graph.invoke({"question": "бюджет"}, context=AskContext(store=store, k=2))
     assert store.reranked
     assert [h.chunk.id for h in out["hits"]] == ["c4", "c3"]
-    assert out["answer"] == "Отговор [S1]."
+    assert out["answer"] == ANSWER
 
 
 def test_rerank_off_skips_the_rerank_node():
@@ -62,14 +30,14 @@ def test_rerank_off_skips_the_rerank_node():
 
 def test_unanswerable_question_stops_at_the_gate(monkeypatch):
     verdict = QueryAssessment(answerable=False, message="По-конкретно?", suggestions=["a"])
-    monkeypatch.setattr(router, "assess", lambda q: verdict)
+    monkeypatch.setattr(gate, "assess", lambda q: verdict)
     out = ask_graph.invoke({"question": "какво стана"}, context=AskContext(store=FakeStore(4)))
     assert out["assessment"] is verdict
     assert "candidates" not in out and "answer" not in out
 
 
 def test_route_off_skips_the_gate(monkeypatch):
-    monkeypatch.setattr(router, "assess", lambda q: pytest.fail("gate should not run"))
+    monkeypatch.setattr(gate, "assess", lambda q: pytest.fail("gate should not run"))
     out = ask_graph.invoke(
         {"question": "бюджет"}, context=AskContext(store=FakeStore(4), route=False)
     )
@@ -93,7 +61,7 @@ def test_answer_tokens_stream_from_the_generate_node():
         for chunk, meta in [payload]
         if meta.get("langgraph_node") == "generate"
     ]
-    assert len(tokens) > 1 and "".join(tokens) == "Отговор [S1]."
+    assert len(tokens) > 1 and "".join(tokens) == ANSWER
 
 
 def test_suggestions_are_cleaned_and_capped():

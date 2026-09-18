@@ -18,9 +18,13 @@ dependencies = [
     # OpenRouter's OpenAI-compatible API (needs OPENROUTER_API_KEY)
     "langgraph>=1.2.11",
     "langchain-openai>=1.6.2",
+    # Typed settings from the environment; python-dotenv loads .env into
+    # os.environ so LangSmith sees its LANGSMITH_* variables too
+    "pydantic-settings>=2.15.0",
+    "python-dotenv>=1.2",
     # Ingestion: parliament.bg client
     "requests>=2.34",
-    # API (phase 4)
+    # API
     "fastapi>=0.136",
     "uvicorn[standard]>=0.49",
 ]

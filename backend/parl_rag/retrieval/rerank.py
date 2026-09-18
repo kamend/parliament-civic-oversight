@@ -3,8 +3,8 @@ from __future__ import annotations
 import functools
 from dataclasses import dataclass
 
-from .chunking import Chunk
-from . import config
+from ..corpus.chunking import Chunk
+from ..settings import settings
 
 
 @dataclass
@@ -24,7 +24,7 @@ def _load_cross_encoder(model_name: str):
 
 class Reranker:
     def __init__(self, model_name: str | None = None):
-        self.model_name = model_name or config.RERANK_MODEL
+        self.model_name = model_name or settings.rerank_model
 
     @property
     def model(self):
@@ -33,9 +33,10 @@ class Reranker:
     def rerank(self, query: str, chunks: list[Chunk], *, top_n: int = 5) -> list[RerankedChunk]:
         """Score (query, chunk) pairs and return the top ``top_n`` reordered.
 
-        ``chunks`` is the first-stage shortlist (e.g. the candidates from a
-        HybridRetriever). We score the clean ``text`` (what the user/LLM sees);
-        you could also rerank ``embed_text`` to include contextual prefixes.
+        ``chunks`` is the first-stage shortlist (the candidates from
+        ``LanceDBStore.hybrid_search``). We score the clean ``text`` (what the
+        user/LLM sees); you could also rerank ``embed_text`` to include
+        contextual prefixes.
         """
         if not chunks:
             return []

@@ -4,8 +4,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
 
-from . import config
-from .chunking import Chunk
+from ..corpus.chunking import Chunk
+from ..settings import settings
 from .rerank import Reranker
 
 # Scalar-column metadata we carry on every row (everything except text/vector).
@@ -68,9 +68,9 @@ class LanceDBStore:
         device: str | None = None,
         reranker: Reranker | None = None,
     ):
-        self.path = Path(path or config.LANCEDB_PATH)
-        self.table_name = table_name or config.LANCEDB_TABLE
-        self.embed_model = embed_model or config.EMBED_MODEL
+        self.path = Path(path or settings.lancedb_path)
+        self.table_name = table_name or settings.lancedb_table
+        self.embed_model = embed_model or settings.embed_model
         self.device = device  # None = sentence-transformers auto-selects
         self._db = None
         self._tbl = None
@@ -147,6 +147,16 @@ class LanceDBStore:
         if self._reranker is None:
             self._reranker = Reranker()
         return self._reranker
+
+    def warm(self, *, with_rerank: bool = True) -> None:
+        """Eagerly load the models so the first real query isn't slow.
+
+        Called from the API's startup lifespan so the cost is paid once, before
+        traffic, not on the first user's request.
+        """
+        self.load_embedder()
+        if with_rerank:
+            _ = self.reranker.model     # the property is what loads the cross-encoder
 
     def exists(self) -> bool:
         return self.table_name in self.db.table_names()

@@ -4,8 +4,7 @@ import functools
 
 import numpy as np
 
-from . import config
-
+from ..settings import settings
 
 # Models that require instruction prefixes (asymmetric search).
 _E5_FAMILY = ("e5", "multilingual-e5")
@@ -29,7 +28,7 @@ class Embedder:
     """Thin wrapper over sentence-transformers with sane RAG defaults."""
 
     def __init__(self, model_name: str | None = None, normalize: bool = True):
-        self.model_name = model_name or config.EMBED_MODEL
+        self.model_name = model_name or settings.embed_model
         self.normalize = normalize
         self._uses_prefix = _needs_e5_prefix(self.model_name)
 

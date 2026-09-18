@@ -262,7 +262,33 @@ class LanceDBStore:
         With ``rerank=True`` we over-fetch a candidate pool (at least
         ``overfetch``, and at least ``k`` + ``_RERANK_MARGIN``) and cross-encode it
         down to ``k``. With ``rerank=False`` we return the hybrid top-``k``
-        directly.
+        directly. The two stages are also exposed separately
+        (:meth:`hybrid_search`, :meth:`rerank_hits`) for the ask graph, which
+        runs them as separate nodes.
+        """
+        candidates = self.hybrid_search(
+            question, k=k, party=party, speaker=speaker, since=since, until=until,
+            date=date, rerank=rerank, overfetch=overfetch,
+        )
+        return self.rerank_hits(question, candidates, k=k) if rerank else candidates
+
+    def hybrid_search(
+        self,
+        question: str,
+        *,
+        k: int = 5,
+        party: str | None = None,
+        speaker: str | None = None,
+        since: str | None = None,
+        until: str | None = None,
+        date: str | None = None,
+        rerank: bool = True,
+        overfetch: int = 30,
+    ) -> list[SearchHit]:
+        """First stage: the hybrid hits in RRF order, not yet reranked.
+
+        ``rerank`` only sizes the result: True returns the over-fetched candidate
+        pool meant for :meth:`rerank_hits`, False returns the final top-``k``.
         """
         where = _build_where(party=party, speaker=speaker, since=since, until=until, date=date)
         fetch = max(k + _RERANK_MARGIN, overfetch) if rerank else k
@@ -274,21 +300,17 @@ class LanceDBStore:
             # filtered set (exact, uses the scalar indexes). This is the path the
             # research doc flagged to test explicitly — see store smoke test.
             q = q.where(where, prefilter=True)
-        rows = q.limit(fetch).to_list()
-        if not rows:
-            return []
+        hits = []
+        for r in q.limit(fetch).to_list():
+            score = float(r.get("_relevance_score") or 0.0)
+            hits.append(SearchHit(chunk=self._row_to_chunk(r), score=score,
+                                  hybrid_score=score, reranked=False))
+        return hits
 
-        hybrid_by_id = {r["id"]: float(r.get("_relevance_score") or 0.0) for r in rows}
-        chunks = [self._row_to_chunk(r) for r in rows]
-
-        if not rerank:
-            return [
-                SearchHit(chunk=c, score=hybrid_by_id.get(c.id, 0.0),
-                          hybrid_score=hybrid_by_id.get(c.id, 0.0), reranked=False)
-                for c in chunks[:k]
-            ]
-
-        reranked = self.reranker.rerank(question, chunks, top_n=k)
+    def rerank_hits(self, question: str, candidates: list[SearchHit], *, k: int = 5) -> list[SearchHit]:
+        """Second stage: cross-encode the candidate pool down to the top ``k``."""
+        hybrid_by_id = {h.chunk.id: h.hybrid_score for h in candidates}
+        reranked = self.reranker.rerank(question, [h.chunk for h in candidates], top_n=k)
         return [
             SearchHit(
                 chunk=rc.chunk,

@@ -56,16 +56,8 @@ ROUTER_SYSTEM_PROMPT = (
     "заседанието'), or wording so vague it could be about anything. A filter "
     "like a party, speaker, or date does NOT by itself turn an anchorless "
     "question into a specific one.\n\n"
-    "Output ONLY a single JSON object — no markdown code fences, no commentary "
-    "before or after it. Do not answer the question itself; only classify it. "
-    "The JSON has these keys:\n"
-    '  "answerable": boolean,\n'
-    '  "reason": short English explanation of the verdict,\n'
-    '  "message": when answerable is false, a brief, polite message IN THE '
-    "QUESTION'S LANGUAGE asking the user to ask something more specific and "
-    "saying why; empty string when answerable is true,\n"
-    '  "suggestions": when answerable is false, an array of up to 3 concrete, '
-    "specific example questions IN THE QUESTION'S LANGUAGE that the user might "
-    "have meant (e.g. about the budget, the euro, judicial reform); empty array "
-    "when answerable is true."
+    # The output shape lives on router.QueryAssessment: its field descriptions
+    # are sent as the tool schema, so they aren't repeated here.
+    "Do not answer the question itself; only classify it, and report the "
+    "verdict by calling the provided tool."
 )

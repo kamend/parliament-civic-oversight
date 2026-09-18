@@ -7,7 +7,7 @@ from .chunking import (
 )
 from .embeddings import Embedder
 from .rerank import Reranker, RerankedChunk
-from .generate import answer, AnswerResult, format_sources
+from .generate import format_sources
 from .store import LanceDBStore, SearchHit
 from .download import ParliamentClient, Sitting, html_to_text
 
@@ -17,7 +17,7 @@ __all__ = [
     "Chunk", "chunk_fixed", "chunk_by_turn", "chunk_by_turn_windowed", "chunk_semantic",
     "Embedder",
     "Reranker", "RerankedChunk",
-    "answer", "AnswerResult", "format_sources",
+    "format_sources",
     "LanceDBStore", "SearchHit",
     "ParliamentClient", "Sitting", "html_to_text",
 ]

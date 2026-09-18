@@ -14,8 +14,10 @@ dependencies = [
     # the CPU-only source below applies. The default wheel drags in ~3.5GB of
     # CUDA/Triton libs that are dead weight here — models run on CPU.
     "torch>=2.12",
-    # Generation via OpenRouter's OpenAI-compatible API (needs OPENROUTER_API_KEY)
-    "openai>=1.60",
+    # The /api/ask flow as a graph; generation + the router gate go through
+    # OpenRouter's OpenAI-compatible API (needs OPENROUTER_API_KEY)
+    "langgraph>=1.2.11",
+    "langchain-openai>=1.6.2",
     # Ingestion: parliament.bg client
     "requests>=2.34",
     # API (phase 4)

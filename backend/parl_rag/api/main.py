@@ -5,7 +5,7 @@ import json
 from contextlib import asynccontextmanager
 from typing import Iterator
 
-from fastapi import Depends, FastAPI, HTTPException, Request
+from fastapi import Depends, FastAPI, HTTPException, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 
@@ -30,8 +30,8 @@ async def lifespan(app: FastAPI):
     # Constructing the store is cheap: it opens nothing and loads no model until
     # first use. The warmup task below is what pays for the weights.
     app.state.store = LanceDBStore()
-    # Set True once warmup finishes. Surfaced by /api/health so a load balancer
-    # / the UI can tell "up" from "warm".
+    # Set True once warmup finishes. Until then /api/health answers 503, so a
+    # load balancer / healthcheck can tell "up" from "warm".
     app.state.models_warm = False
 
     async def _warm():
@@ -40,7 +40,7 @@ async def lifespan(app: FastAPI):
             app.state.models_warm = True
             print("models are warm..")
         except Exception as e:  # noqa: BLE001
-            print(f"[startup] model warmup skipped: {e}")
+            print(f"[startup] model warmup failed, /api/health will report 503: {e}")
 
     task = asyncio.create_task(_warm())
     yield
@@ -72,14 +72,23 @@ def _sse(event: str, data: dict) -> str:
 # Endpoints
 # --------------------------------------------------------------------------- #
 @app.get("/api/health", response_model=HealthResponse)
-def health(request: Request, store: LanceDBStore = Depends(get_store)) -> HealthResponse:
-    """Readiness probe: confirms the store opens and reports row count + warmth."""
+def health(
+    request: Request, response: Response, store: LanceDBStore = Depends(get_store)
+) -> HealthResponse:
+    """Readiness probe: confirms the store opens and reports row count + warmth.
+
+    Answers 503 (same body) until the models are warm, so a "healthy" container
+    means queries won't pay for — or race — the model load.
+    """
     rows = store.count()  # 0 (and status 'empty') if the table isn't built yet
+    warm = request.app.state.models_warm
+    if not warm:
+        response.status_code = 503
     return HealthResponse(
         status="ok" if store.exists() else "empty",
         table=store.table_name,
         rows=rows,
-        models_warm=request.app.state.models_warm,
+        models_warm=warm,
         embed_model=settings.embed_model,
         rerank_model=settings.rerank_model,
         llm_model=settings.llm_model,

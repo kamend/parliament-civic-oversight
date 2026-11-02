@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import threading
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
@@ -77,6 +78,8 @@ class LanceDBStore:
         self._func = None
         self._schema = None
         self._reranker = reranker  # lazily built on first rerank
+        # Serialises loading bge-m3: see load_embedder.
+        self._embed_lock = threading.Lock()
 
     # ---- lazy plumbing ------------------------------------------------- #
     @property
@@ -108,8 +111,13 @@ class LanceDBStore:
         call reloads the weights. Loading through ``self.func`` — equal to the
         throwaways, and alive as long as the store — keeps that entry valid.
         Cheap after the first call (cache hit).
+
+        Locked because LanceDB's cache doesn't lock around a miss: a query that
+        arrives during startup warmup would otherwise load a second copy of the
+        weights. With the lock it waits for the load already in progress.
         """
-        return self.func.get_embedding_model()
+        with self._embed_lock:
+            return self.func.get_embedding_model()
 
     @property
     def schema(self):

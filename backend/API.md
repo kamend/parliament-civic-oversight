@@ -46,7 +46,9 @@ uv run uvicorn parl_rag.api.main:app --host 127.0.0.1 --port 8077
 On startup the app **warms the models once** — bge-m3 (embedder) and
 bge-reranker-v2-m3 (cross-encoder), ~4.6 GB total — so the first request isn't
 slow. Watch for `Application startup complete`, then `models_warm` flips true in
-`/api/health`. Bound to `127.0.0.1`, so it's local-only.
+`/api/health`, which answers **503 until then** (and 200 after). A query sent
+during warmup waits for the load in progress rather than loading a second copy.
+Bound to `127.0.0.1`, so it's local-only.
 
 Useful flags:
 
@@ -64,7 +66,7 @@ Interactive docs (Swagger UI) once it's up: <http://127.0.0.1:8077/docs>.
 
 | Endpoint | Purpose |
 |---|---|
-| `GET /api/health` | Readiness: table reachable, row count, are the models warm. |
+| `GET /api/health` | Readiness: table reachable, row count, are the models warm. 503 (same body) until the models are warm. |
 | `GET /api/filters` | Distinct parties, speakers, and the date range — populates the UI filter bar. |
 | `POST /api/ask` | Hybrid retrieve → rerank → **stream** a grounded, cited answer over SSE. |
 
